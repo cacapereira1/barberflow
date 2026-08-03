@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import BarberSelector from "@/components/BarberSelector";
 import CustomerForm from "@/components/CustomerForm";
 import DateTimeSelector from "@/components/DateTimeSelector";
 import ServiceSelector from "@/components/ServiceSelector";
@@ -13,15 +14,10 @@ type Service = {
   description: string;
 };
 
-const barbers = [
-  "Lucas Ferreira",
-  "Rafael Santos",
-  "Matheus Oliveira",
-];
-
 export default function Agendamento() {
   const [selectedBarber, setSelectedBarber] = useState("");
-  const [selectedService, setSelectedService] = useState<Service | null>(null);
+  const [selectedService, setSelectedService] =
+    useState<Service | null>(null);
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
 
@@ -66,15 +62,17 @@ export default function Agendamento() {
 
     const formattedDate = `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`;
 
-    const { data: existingAppointments, error: availabilityError } =
-      await supabase
-        .from("agendamentos")
-        .select("id")
-        .eq("barbeiro", selectedBarber)
-        .eq("data", formattedDate)
-        .eq("horario", selectedTime)
-        .neq("status", "Cancelado")
-        .limit(1);
+    const {
+      data: existingAppointments,
+      error: availabilityError,
+    } = await supabase
+      .from("agendamentos")
+      .select("id")
+      .eq("barbeiro", selectedBarber)
+      .eq("data", formattedDate)
+      .eq("horario", selectedTime)
+      .neq("status", "Cancelado")
+      .limit(1);
 
     if (availabilityError) {
       console.error(
@@ -85,31 +83,38 @@ export default function Agendamento() {
       setErrorMessage(
         `Erro ao verificar o horário: ${availabilityError.message}`,
       );
+
       setIsSaving(false);
       return;
     }
 
-    if (existingAppointments && existingAppointments.length > 0) {
+    if (
+      existingAppointments &&
+      existingAppointments.length > 0
+    ) {
       setErrorMessage(
         "Este horário acabou de ser ocupado. Escolha outro horário.",
       );
+
       setSelectedTime("");
       setIsSaving(false);
       return;
     }
 
-    const { error } = await supabase.from("agendamentos").insert({
-      cliente: customerName.trim(),
-      telefone: customerPhone.trim(),
-      email: customerEmail.trim() || null,
-      barbeiro: selectedBarber,
-      servico: selectedService.name,
-      data: formattedDate,
-      horario: selectedTime,
-      valor: selectedService.price,
-      status: "Pendente",
-      observacoes: customerNotes.trim() || null,
-    });
+    const { error } = await supabase
+      .from("agendamentos")
+      .insert({
+        cliente: customerName.trim(),
+        telefone: customerPhone.trim(),
+        email: customerEmail.trim() || null,
+        barbeiro: selectedBarber,
+        servico: selectedService.name,
+        data: formattedDate,
+        horario: selectedTime,
+        valor: selectedService.price,
+        status: "Pendente",
+        observacoes: customerNotes.trim() || null,
+      });
 
     if (error) {
       console.error("Erro ao salvar agendamento:", error);
@@ -124,7 +129,7 @@ export default function Agendamento() {
 
   return (
     <main className="min-h-screen bg-black text-white">
-      <section className="px-6 py-20">
+      <section className="px-6 pt-20">
         <div className="mx-auto max-w-5xl">
           <p className="font-semibold uppercase tracking-[0.3em] text-yellow-500">
             BarberFlow
@@ -135,53 +140,22 @@ export default function Agendamento() {
           </h1>
 
           <p className="mt-4 text-lg text-gray-400">
-            Escolha o profissional, o serviço e o melhor horário para você.
+            Escolha o profissional, o serviço e o melhor horário
+            para você.
           </p>
-
-          <div className="mt-16">
-            <h2 className="text-4xl font-bold">Escolha seu barbeiro</h2>
-
-            <p className="mt-3 text-gray-400">
-              Selecione o profissional que realizará seu atendimento.
-            </p>
-
-            <div className="mt-10 grid gap-6 md:grid-cols-3">
-              {barbers.map((barber) => {
-                const isSelected = selectedBarber === barber;
-
-                return (
-                  <button
-                    key={barber}
-                    type="button"
-                    onClick={() => {
-                      setSelectedBarber(barber);
-                      setSelectedService(null);
-                      setSelectedDate("");
-                      setSelectedTime("");
-                      resetConfirmation();
-                    }}
-                    className={`rounded-xl border p-8 font-bold transition ${
-                      isSelected
-                        ? "border-yellow-500 bg-yellow-500 text-black"
-                        : "border-zinc-700 bg-zinc-900 hover:border-yellow-500"
-                    }`}
-                  >
-                    {barber}
-                  </button>
-                );
-              })}
-            </div>
-
-            {selectedBarber && (
-              <div className="mt-10 rounded-xl border border-yellow-500/40 bg-yellow-500/10 p-5">
-                <p className="font-bold text-yellow-500">
-                  Barbeiro selecionado: {selectedBarber}
-                </p>
-              </div>
-            )}
-          </div>
         </div>
       </section>
+
+      <BarberSelector
+        selectedBarber={selectedBarber}
+        onSelectBarber={(barber) => {
+          setSelectedBarber(barber);
+          setSelectedService(null);
+          setSelectedDate("");
+          setSelectedTime("");
+          resetConfirmation();
+        }}
+      />
 
       {selectedBarber && (
         <ServiceSelector
@@ -252,47 +226,66 @@ export default function Agendamento() {
 
               <div className="mt-8 grid gap-5 text-lg text-gray-300 md:grid-cols-2">
                 <p>
-                  <strong className="text-white">Cliente:</strong>{" "}
+                  <strong className="text-white">
+                    Cliente:
+                  </strong>{" "}
                   {customerName || "Não informado"}
                 </p>
 
                 <p>
-                  <strong className="text-white">WhatsApp:</strong>{" "}
+                  <strong className="text-white">
+                    WhatsApp:
+                  </strong>{" "}
                   {customerPhone || "Não informado"}
                 </p>
 
                 <p>
-                  <strong className="text-white">Barbeiro:</strong>{" "}
+                  <strong className="text-white">
+                    Barbeiro:
+                  </strong>{" "}
                   {selectedBarber}
                 </p>
 
                 <p>
-                  <strong className="text-white">Serviço:</strong>{" "}
+                  <strong className="text-white">
+                    Serviço:
+                  </strong>{" "}
                   {selectedService.name}
                 </p>
 
                 <p>
-                  <strong className="text-white">Data:</strong>{" "}
+                  <strong className="text-white">
+                    Data:
+                  </strong>{" "}
                   {selectedDate}
                 </p>
 
                 <p>
-                  <strong className="text-white">Horário:</strong>{" "}
+                  <strong className="text-white">
+                    Horário:
+                  </strong>{" "}
                   {selectedTime}
                 </p>
 
                 <p>
-                  <strong className="text-white">Valor:</strong>{" "}
+                  <strong className="text-white">
+                    Valor:
+                  </strong>{" "}
                   <span className="font-bold text-yellow-500">
-                    {selectedService.price.toLocaleString("pt-BR", {
-                      style: "currency",
-                      currency: "BRL",
-                    })}
+                    {selectedService.price.toLocaleString(
+                      "pt-BR",
+                      {
+                        style: "currency",
+                        currency: "BRL",
+                      },
+                    )}
                   </span>
                 </p>
 
                 <p>
-                  <strong className="text-white">Status:</strong>{" "}
+                  <strong className="text-white">
+                    Status:
+                  </strong>{" "}
                   <span
                     className={`font-semibold ${
                       isConfirmed
@@ -308,14 +301,18 @@ export default function Agendamento() {
 
                 {customerEmail && (
                   <p className="md:col-span-2">
-                    <strong className="text-white">E-mail:</strong>{" "}
+                    <strong className="text-white">
+                      E-mail:
+                    </strong>{" "}
                     {customerEmail}
                   </p>
                 )}
 
                 {customerNotes && (
                   <p className="md:col-span-2">
-                    <strong className="text-white">Observações:</strong>{" "}
+                    <strong className="text-white">
+                      Observações:
+                    </strong>{" "}
                     {customerNotes}
                   </p>
                 )}
@@ -339,7 +336,8 @@ export default function Agendamento() {
                     : "Confirmar agendamento"}
               </button>
 
-              {!customerName.trim() || !customerPhone.trim() ? (
+              {!customerName.trim() ||
+              !customerPhone.trim() ? (
                 <p className="mt-3 text-center text-sm text-gray-500">
                   Preencha o nome e o WhatsApp para confirmar.
                 </p>
@@ -362,33 +360,40 @@ export default function Agendamento() {
                   </h3>
 
                   <p className="mt-2 text-gray-300">
-                    Seu agendamento foi salvo e está aguardando a confirmação
-                    da barbearia.
+                    Seu agendamento foi salvo e está aguardando
+                    a confirmação da barbearia.
                   </p>
 
                   <div className="mx-auto mt-6 max-w-md rounded-xl bg-black/30 p-5 text-left">
                     <p>
-                      <strong>Cliente:</strong> {customerName}
+                      <strong>Cliente:</strong>{" "}
+                      {customerName}
                     </p>
 
                     <p className="mt-2">
-                      <strong>WhatsApp:</strong> {customerPhone}
+                      <strong>WhatsApp:</strong>{" "}
+                      {customerPhone}
                     </p>
 
                     <p className="mt-2">
-                      <strong>Barbeiro:</strong> {selectedBarber}
+                      <strong>Barbeiro:</strong>{" "}
+                      {selectedBarber}
                     </p>
 
                     <p className="mt-2">
-                      <strong>Serviço:</strong> {selectedService.name}
+                      <strong>Serviço:</strong>{" "}
+                      {selectedService.name}
                     </p>
 
                     <p className="mt-2">
                       <strong>Valor:</strong>{" "}
-                      {selectedService.price.toLocaleString("pt-BR", {
-                        style: "currency",
-                        currency: "BRL",
-                      })}
+                      {selectedService.price.toLocaleString(
+                        "pt-BR",
+                        {
+                          style: "currency",
+                          currency: "BRL",
+                        },
+                      )}
                     </p>
 
                     <p className="mt-2">
@@ -396,7 +401,8 @@ export default function Agendamento() {
                     </p>
 
                     <p className="mt-2">
-                      <strong>Horário:</strong> {selectedTime}
+                      <strong>Horário:</strong>{" "}
+                      {selectedTime}
                     </p>
 
                     <p className="mt-2">
