@@ -66,6 +66,38 @@ export default function Agendamento() {
 
     const formattedDate = `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`;
 
+    const { data: existingAppointments, error: availabilityError } =
+      await supabase
+        .from("agendamentos")
+        .select("id")
+        .eq("barbeiro", selectedBarber)
+        .eq("data", formattedDate)
+        .eq("horario", selectedTime)
+        .neq("status", "Cancelado")
+        .limit(1);
+
+    if (availabilityError) {
+      console.error(
+        "Erro ao verificar disponibilidade:",
+        availabilityError,
+      );
+
+      setErrorMessage(
+        `Erro ao verificar o horário: ${availabilityError.message}`,
+      );
+      setIsSaving(false);
+      return;
+    }
+
+    if (existingAppointments && existingAppointments.length > 0) {
+      setErrorMessage(
+        "Este horário acabou de ser ocupado. Escolha outro horário.",
+      );
+      setSelectedTime("");
+      setIsSaving(false);
+      return;
+    }
+
     const { error } = await supabase.from("agendamentos").insert({
       cliente: customerName.trim(),
       telefone: customerPhone.trim(),
@@ -165,6 +197,7 @@ export default function Agendamento() {
 
       {selectedBarber && selectedService && (
         <DateTimeSelector
+          selectedBarber={selectedBarber}
           selectedDate={selectedDate}
           selectedTime={selectedTime}
           onSelectDate={(date) => {
