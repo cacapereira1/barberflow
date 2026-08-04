@@ -4,15 +4,10 @@ import { useState } from "react";
 import BarberSelector from "@/components/BarberSelector";
 import CustomerForm from "@/components/CustomerForm";
 import DateTimeSelector from "@/components/DateTimeSelector";
-import ServiceSelector from "@/components/ServiceSelector";
+import ServiceSelector, {
+  type Service,
+} from "@/components/ServiceSelector";
 import { supabase } from "@/lib/supabase";
-
-type Service = {
-  id: number;
-  name: string;
-  price: number;
-  description: string;
-};
 
 export default function Agendamento() {
   const [selectedBarber, setSelectedBarber] = useState("");
@@ -60,7 +55,8 @@ export default function Agendamento() {
       return;
     }
 
-    const formattedDate = `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`;
+    const formattedDate =
+      `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`;
 
     const {
       data: existingAppointments,
@@ -112,13 +108,23 @@ export default function Agendamento() {
         data: formattedDate,
         horario: selectedTime,
         valor: selectedService.price,
+        duracao_minutos:
+          selectedService.durationMinutes,
         status: "Pendente",
-        observacoes: customerNotes.trim() || null,
+        observacoes:
+          customerNotes.trim() || null,
       });
 
     if (error) {
-      console.error("Erro ao salvar agendamento:", error);
-      setErrorMessage(`Erro ao salvar: ${error.message}`);
+      console.error(
+        "Erro ao salvar agendamento:",
+        error,
+      );
+
+      setErrorMessage(
+        `Erro ao salvar: ${error.message}`,
+      );
+
       setIsSaving(false);
       return;
     }
@@ -132,7 +138,7 @@ export default function Agendamento() {
       <section className="px-6 pt-20">
         <div className="mx-auto max-w-5xl">
           <p className="font-semibold uppercase tracking-[0.3em] text-yellow-500">
-            BarberFlow
+            BarberStack
           </p>
 
           <h1 className="mt-4 text-4xl font-bold md:text-6xl">
@@ -174,6 +180,9 @@ export default function Agendamento() {
           selectedBarber={selectedBarber}
           selectedDate={selectedDate}
           selectedTime={selectedTime}
+          selectedServiceDuration={
+            selectedService.durationMinutes
+          }
           onSelectDate={(date) => {
             setSelectedDate(date);
             setSelectedTime("");
@@ -265,6 +274,13 @@ export default function Agendamento() {
                     Horário:
                   </strong>{" "}
                   {selectedTime}
+                </p>
+
+                <p>
+                  <strong className="text-white">
+                    Duração:
+                  </strong>{" "}
+                  {selectedService.durationMinutes} minutos
                 </p>
 
                 <p>
@@ -386,6 +402,11 @@ export default function Agendamento() {
                     </p>
 
                     <p className="mt-2">
+                      <strong>Duração:</strong>{" "}
+                      {selectedService.durationMinutes} minutos
+                    </p>
+
+                    <p className="mt-2">
                       <strong>Valor:</strong>{" "}
                       {selectedService.price.toLocaleString(
                         "pt-BR",
@@ -397,7 +418,8 @@ export default function Agendamento() {
                     </p>
 
                     <p className="mt-2">
-                      <strong>Data:</strong> {selectedDate}
+                      <strong>Data:</strong>{" "}
+                      {selectedDate}
                     </p>
 
                     <p className="mt-2">

@@ -2,13 +2,20 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import Calendar from "./Calendar";
 
 type DateTimeSelectorProps = {
   selectedBarber: string;
   selectedDate: string;
   selectedTime: string;
+  selectedServiceDuration: number;
   onSelectDate: (date: string) => void;
   onSelectTime: (time: string) => void;
+};
+
+type AgendamentoOcupado = {
+  horario: string;
+  duracao_minutos: number | null;
 };
 
 const times = [
@@ -51,26 +58,49 @@ function isToday(displayDate: string) {
   return displayDate === formatDateToDisplay(new Date());
 }
 
-function hasTimePassed(time: string) {
-  const now = new Date();
+function convertTimeToMinutes(time: string) {
   const [hours, minutes] = time.split(":").map(Number);
 
-  const appointmentTime = new Date();
-  appointmentTime.setHours(hours, minutes, 0, 0);
+  return hours * 60 + minutes;
+}
 
-  return appointmentTime <= now;
+function hasTimePassed(time: string) {
+  const now = new Date();
+
+  const currentMinutes =
+    now.getHours() * 60 + now.getMinutes();
+
+  const appointmentMinutes =
+    convertTimeToMinutes(time);
+
+  return appointmentMinutes <= currentMinutes;
+}
+
+function intervalsOverlap(
+  firstStart: number,
+  firstEnd: number,
+  secondStart: number,
+  secondEnd: number,
+) {
+  return firstStart < secondEnd && firstEnd > secondStart;
 }
 
 export default function DateTimeSelector({
   selectedBarber,
   selectedDate,
   selectedTime,
+  selectedServiceDuration,
   onSelectDate,
   onSelectTime,
 }: DateTimeSelectorProps) {
-  const [occupiedTimes, setOccupiedTimes] = useState<string[]>([]);
-  const [loadingTimes, setLoadingTimes] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [occupiedAppointments, setOccupiedAppointments] =
+    useState<AgendamentoOcupado[]>([]);
+
+  const [loadingTimes, setLoadingTimes] =
+    useState(false);
+
+  const [errorMessage, setErrorMessage] =
+    useState("");
 
   const dates = useMemo(() => {
     const generatedDates: string[] = [];
@@ -78,9 +108,12 @@ export default function DateTimeSelector({
 
     for (let index = 0; index < 7; index += 1) {
       const date = new Date(today);
+
       date.setDate(today.getDate() + index);
 
-      generatedDates.push(formatDateToDisplay(date));
+      generatedDates.push(
+        formatDateToDisplay(date),
+      );
     }
 
     return generatedDates;
@@ -89,37 +122,42 @@ export default function DateTimeSelector({
   useEffect(() => {
     async function fetchOccupiedTimes() {
       if (!selectedDate || !selectedBarber) {
-        setOccupiedTimes([]);
+        setOccupiedAppointments([]);
         return;
       }
 
       setLoadingTimes(true);
       setErrorMessage("");
 
-      const databaseDate = formatDateToDatabase(selectedDate);
+      const databaseDate =
+        formatDateToDatabase(selectedDate);
 
       const { data, error } = await supabase
         .from("agendamentos")
-        .select("horario")
+        .select("horario, duracao_minutos")
         .eq("barbeiro", selectedBarber)
         .eq("data", databaseDate)
         .neq("status", "Cancelado");
 
       if (error) {
-        console.error("Erro ao buscar horários ocupados:", error);
+        console.error(
+          "Erro ao buscar horários ocupados:",
+          error,
+        );
+
         setErrorMessage(
           `Não foi possível carregar os horários: ${error.message}`,
         );
-        setOccupiedTimes([]);
+
+        setOccupiedAppointments([]);
         setLoadingTimes(false);
         return;
       }
 
-      const alreadyOccupied = (data ?? []).map(
-        (appointment) => appointment.horario,
+      setOccupiedAppointments(
+        (data ?? []) as AgendamentoOcupado[],
       );
 
-      setOccupiedTimes(alreadyOccupied);
       setLoadingTimes(false);
     }
 
@@ -127,19 +165,110 @@ export default function DateTimeSelector({
   }, [selectedBarber, selectedDate]);
 
   const availableTimes = useMemo(() => {
-    return times.filter((time) => {
-      const isOccupied = occupiedTimes.includes(time);
-      const isPast = isToday(selectedDate) && hasTimePassed(time);
+    const serviceDuration =
+      selectedServiceDuration > 0
+        ? selectedServiceDuration
+        : 30;
 
-      return !isOccupied && !isPast;
+    return times.filter((time) => {
+      const candidateStart =
+        convertTimeToMinutes(time);
+
+      const candidateEnd =
+        candidateStart + serviceDuration;
+
+      const isPast =
+        isToday(selectedDate) &&
+        hasTimePassed(time);
+
+      if (isPast) {
+        return false;
+      }
+
+      /*
+       * Impede o atendimento de atravessar
+       * o horário de almoço: 12:00 às 13:00.
+       */
+      const lunchStart = convertTimeToMinutes("12:00");
+      const lunchEnd = convertTimeToMinutes("13:00");
+
+      const crossesLunch = intervalsOverlap(
+        candidateStart,
+        candidateEnd,
+        lunchStart,
+        lunchEnd,
+      );
+
+      if (crossesLunch) {
+        return false;
+      }
+
+      /*
+       * Como o último horário listado é 19:00,
+       * consideramos o limite final como 19:30.
+       */
+      const businessClosing =
+        convertTimeToMinutes("19:30");
+
+      if (candidateEnd > businessClosing) {
+        return false;
+      }
+
+      const conflictsWithAppointment =
+        occupiedAppointments.some(
+          (appointment) => {
+            const appointmentStart =
+              convertTimeToMinutes(
+                appointment.horario,
+              );
+
+            const appointmentDuration =
+              appointment.duracao_minutos &&
+              appointment.duracao_minutos > 0
+                ? appointment.duracao_minutos
+                : 30;
+
+            const appointmentEnd =
+              appointmentStart +
+              appointmentDuration;
+
+            return intervalsOverlap(
+              candidateStart,
+              candidateEnd,
+              appointmentStart,
+              appointmentEnd,
+            );
+          },
+        );
+
+      return !conflictsWithAppointment;
     });
-  }, [occupiedTimes, selectedDate]);
+  }, [
+    occupiedAppointments,
+    selectedDate,
+    selectedServiceDuration,
+  ]);
+
+  useEffect(() => {
+    if (
+      selectedTime &&
+      !availableTimes.includes(selectedTime)
+    ) {
+      onSelectTime("");
+    }
+  }, [
+    availableTimes,
+    selectedTime,
+    onSelectTime,
+  ]);
 
   return (
     <section className="border-t border-white/10 bg-black px-6 py-20 text-white">
       <div className="mx-auto max-w-5xl">
         <div>
-          <h2 className="text-4xl font-bold">Escolha a data</h2>
+          <h2 className="text-4xl font-bold">
+            Escolha a data
+          </h2>
 
           <p className="mt-3 text-gray-400">
             Selecione o melhor dia para o seu atendimento.
@@ -168,10 +297,18 @@ export default function DateTimeSelector({
 
         {selectedDate && (
           <div className="mt-16">
-            <h2 className="text-4xl font-bold">Escolha o horário</h2>
+            <h2 className="text-4xl font-bold">
+              Escolha o horário
+            </h2>
 
             <p className="mt-3 text-gray-400">
-              Horários disponíveis para {selectedDate} com {selectedBarber}.
+              Horários disponíveis para {selectedDate} com{" "}
+              {selectedBarber}.
+            </p>
+
+            <p className="mt-2 text-sm text-yellow-500">
+              Duração do serviço:{" "}
+              {selectedServiceDuration} minutos
             </p>
 
             {loadingTimes && (
@@ -194,7 +331,9 @@ export default function DateTimeSelector({
                     <button
                       key={time}
                       type="button"
-                      onClick={() => onSelectTime(time)}
+                      onClick={() =>
+                        onSelectTime(time)
+                      }
                       className={`rounded-xl border px-5 py-4 font-semibold transition ${
                         selectedTime === time
                           ? "border-yellow-500 bg-yellow-500 text-black"
